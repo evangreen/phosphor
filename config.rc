@@ -1,0 +1,113 @@
+#include <windows.h>
+#include "resource.h"
+
+ID_ICON ICON DISCARDABLE "phosphor2.ico"
+
+IDR_SOURCE RCDATA "phosphor2.c"
+IDR_RESOURCE_H RCDATA "resource.h"
+IDR_RC RCDATA "config.rc"
+IDR_MAKEFILE RCDATA "Makefile"
+
+IDD_MAIN_WINDOW DIALOG 6, 18, UI_INITIAL_WIDTH, UI_INITIAL_HEIGHT
+STYLE WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "Phosphor2 Configuration"
+FONT 8, "MS Sans Serif"
+BEGIN
+    RTEXT         "Font: ", 0,
+                  UI_BORDER, FONT_OFFSET_Y, UI_DESCRIPTION_WIDTH,
+                  UI_LINE_HEIGHT
+
+    RTEXT         "Background (RGB): ", 0,
+                  UI_BORDER, BACKGROUND_OFFSET_Y, UI_DESCRIPTION_WIDTH,
+                  UI_LINE_HEIGHT
+
+    RTEXT         "Text Color (RGB): ", 0,
+                  UI_BORDER, FOREGROUND_OFFSET_Y, UI_DESCRIPTION_WIDTH,
+                  UI_LINE_HEIGHT
+
+    RTEXT         "Text Scale: ", 0,
+                  UI_BORDER, TEXT_SCALE_OFFSET_Y, UI_DESCRIPTION_WIDTH,
+                  UI_LINE_HEIGHT
+
+    RTEXT         "Cursor Rate (ms): ", 0,
+                  UI_BORDER, CURSOR_RATE_OFFSET_Y, UI_DESCRIPTION_WIDTH,
+                  UI_LINE_HEIGHT
+
+    RTEXT         "Text Rate (us): ", 0,
+                  UI_BORDER, TEXT_RATE_OFFSET_Y, UI_DESCRIPTION_WIDTH,
+                  UI_LINE_HEIGHT
+
+    LTEXT         "Files to print (semicolon delimited, wildcards permitted): ",
+                  0,
+                  UI_BORDER, TEXT_FILES_DESCRIPTION_OFFSET_Y,
+                  TEXT_FILES_WIDTH, UI_LINE_HEIGHT
+
+    CONTROL       "", IDE_TEXT_FILES, "EDIT",
+                  ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN |
+                  WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                  UI_BORDER, TEXT_FILES_OFFSET_Y, TEXT_FILES_WIDTH,
+                  TEXT_FILES_HEIGHT
+
+    CONTROL       "", IDE_FONT, "EDIT",
+                  ES_LEFT | ES_AUTOHSCROLL | WS_CHILD | WS_VISIBLE |
+                  WS_BORDER | WS_TABSTOP,
+                  EDIT_BOX_OFFSET_X, FONT_OFFSET_Y, (2 * UI_MEDIUM_BOX_WIDTH),
+                  UI_LINE_HEIGHT
+
+    CONTROL       "", IDE_BACKGROUND_RED, "EDIT",
+                  ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                  EDIT_BOX_OFFSET_X, BACKGROUND_OFFSET_Y, UI_SMALL_BOX_WIDTH,
+                  UI_LINE_HEIGHT
+
+    CONTROL       "", IDE_BACKGROUND_GREEN, "EDIT",
+                  ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                  EDIT_GREEN_OFFSET_X, BACKGROUND_OFFSET_Y, UI_SMALL_BOX_WIDTH,
+                  UI_LINE_HEIGHT
+
+    CONTROL       "", IDE_BACKGROUND_BLUE, "EDIT",
+                  ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                  EDIT_BLUE_OFFSET_X, BACKGROUND_OFFSET_Y, UI_SMALL_BOX_WIDTH,
+                  UI_LINE_HEIGHT
+
+    CONTROL       "", IDE_FOREGROUND_RED, "EDIT",
+                  ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                  EDIT_BOX_OFFSET_X, FOREGROUND_OFFSET_Y, UI_SMALL_BOX_WIDTH,
+                  UI_LINE_HEIGHT
+
+    CONTROL       "", IDE_FOREGROUND_GREEN, "EDIT",
+                  ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                  EDIT_GREEN_OFFSET_X, FOREGROUND_OFFSET_Y, UI_SMALL_BOX_WIDTH,
+                  UI_LINE_HEIGHT
+
+    CONTROL       "", IDE_TEXT_SCALE, "EDIT",
+                  ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                  EDIT_BOX_OFFSET_X, TEXT_SCALE_OFFSET_Y, UI_MEDIUM_BOX_WIDTH,
+                  UI_LINE_HEIGHT
+
+    CONTROL       "", IDE_CURSOR_RATE, "EDIT",
+                  ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                  EDIT_BOX_OFFSET_X, CURSOR_RATE_OFFSET_Y, UI_MEDIUM_BOX_WIDTH,
+                  UI_LINE_HEIGHT
+
+    CONTROL       "", IDE_TEXT_RATE, "EDIT",
+                  ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                  EDIT_BOX_OFFSET_X, TEXT_RATE_OFFSET_Y, UI_MEDIUM_BOX_WIDTH,
+                  UI_LINE_HEIGHT
+
+    CONTROL       "", IDE_FOREGROUND_BLUE, "EDIT",
+                  ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                  EDIT_BLUE_OFFSET_X, FOREGROUND_OFFSET_Y, UI_SMALL_BOX_WIDTH,
+                  UI_LINE_HEIGHT
+
+    CONTROL       "OK", IDC_OK, "BUTTON",
+                  BS_DEFPUSHBUTTON | WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+                  OK_OFFSET_X, OK_CANCEL_OFFSET_Y, UI_BUTTON_WIDTH,
+                  UI_LINE_HEIGHT
+
+    CONTROL       "Cancel", IDC_CANCEL, "BUTTON",
+                  WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+                  CANCEL_OFFSET_X, OK_CANCEL_OFFSET_Y, UI_BUTTON_WIDTH,
+                  UI_LINE_HEIGHT
+
+END
+
