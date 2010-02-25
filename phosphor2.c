@@ -61,6 +61,7 @@ Environment:
 #define KEY_TEXT_SCALE "TextScale"
 #define KEY_CURSOR_RATE "CursorRate"
 #define KEY_TEXT_RATE "TextRate"
+#define KEY_DECAY "Decay"
 #define KEY_TEXT_FILES "TextFiles"
 
 //
@@ -76,6 +77,7 @@ typedef struct _CHARACTER_BITMAP {
 typedef struct _CELL {
     UCHAR Character;
     BOOLEAN Redraw;
+    ULONG FadeIndex;
 } CELL, *PCELL;
 
 typedef struct _DIRECTORY_SEARCH {
@@ -186,7 +188,8 @@ PhopPrintCharacter (
     HDC Window,
     UCHAR Character,
     ULONG XPosition,
-    ULONG YPosition
+    ULONG YPosition,
+    ULONG FadeIndex
     );
 
 BOOLEAN
@@ -249,7 +252,7 @@ ULONG PhoBackgroundGreen = 0x00;
 ULONG PhoBackgroundBlue = 0x50;
 double PhoScale = 6.0;
 ULONG PhoTimerRateMs = 20;
-ULONG PhoDecay = 85;
+ULONG PhoDecay = 3;
 ULONG PhoCursorBlinkMs = 500;
 ULONG PhoInputDelayUs = 50000;
 PSTR PhoSearchPath = "c:\\src\\*.c;c:\\src\\*.h;c:\\src\\*.s";
@@ -263,7 +266,7 @@ ULONG PhoCharacterHeight = 0;
 ULONG PhoCharacterMaxWidth = 0;
 ULONG PhoXCells = 0;
 ULONG PhoYCells = 0;
-CHARACTER_BITMAP PhoCharacters[ASCII_MAX - ASCII_MIN + 1];
+PCHARACTER_BITMAP PhoBitmaps = NULL;
 PCELL PhoCell = NULL;
 ULONG PhoCursorX = 0;
 ULONG PhoCursorY = 0;
@@ -537,6 +540,7 @@ Return Value:
         Result = PhoInitialize(hWnd);
         if (Result == FALSE) {
             ScreenSaverTerminate = TRUE;
+            SendMessage(hWnd, WM_CLOSE, 0, 0);
         }
 
         GetCursorPos(&PhoMousePosition);
@@ -709,6 +713,9 @@ Return Value:
         Edit_SetText(EditBox, String);
         EditBox = GetDlgItem(Dialog, IDE_TEXT_RATE);
         sprintf(String, "%d", (UINT)PhoInputDelayUs);
+        Edit_SetText(EditBox, String);
+        EditBox = GetDlgItem(Dialog, IDE_DECAY);
+        sprintf(String, "%d", (UINT)PhoDecay);
         Edit_SetText(EditBox, String);
         EditBox = GetDlgItem(Dialog, IDE_TEXT_FILES);
         sprintf(String, "%s", PhoSearchPath);
@@ -1080,6 +1087,7 @@ Return Value:
             for (XIndex = 0; XIndex < PhoXCells; XIndex += 1) {
                 PhoCell[(YIndex * PhoXCells) + XIndex].Character = ' ';
                 PhoCell[(YIndex * PhoXCells) + XIndex].Redraw = TRUE;
+                PhoCell[(YIndex * PhoXCells) + XIndex].FadeIndex = PhoDecay;
             }
         }
 
@@ -1116,9 +1124,20 @@ Return Value:
 
         if (PhoCell[CursorCellIndex].Character == ' ') {
             PhoCell[CursorCellIndex].Character = CURSOR_CHARACTER;
+            PhoCell[CursorCellIndex].FadeIndex = PhoDecay;
+
+        //
+        // Otherwise, begin the fade.
+        //
 
         } else {
-            PhoCell[CursorCellIndex].Character = ' ';
+            if (PhoCell[CursorCellIndex].FadeIndex == 0) {
+                PhoCell[CursorCellIndex].Character = ' ';
+                PhoCell[CursorCellIndex].FadeIndex = PhoDecay;
+
+            } else if (PhoCell[CursorCellIndex].FadeIndex == PhoDecay) {
+                PhoCell[CursorCellIndex].FadeIndex -= 1;
+            }
         }
 
         PhoCell[CursorCellIndex].Redraw = TRUE;
@@ -1209,9 +1228,32 @@ Return Value:
                 PhopPrintCharacter(Dc,
                                    PhoCell[CellIndex].Character,
                                    XIndex,
-                                   YIndex);
+                                   YIndex,
+                                   PhoCell[CellIndex].FadeIndex);
 
-                PhoCell[CellIndex].Redraw = FALSE;
+                //
+                // If a cell is currently in transition to blank, keep it
+                // moving. If this was the last cell before blank, make the
+                // cell blank, and print one more time.
+                //
+
+                if (PhoCell[CellIndex].FadeIndex < PhoDecay) {
+                    if (PhoCell[CellIndex].FadeIndex == 0) {
+                        PhoCell[CellIndex].Character = ' ';
+                        PhoCell[CellIndex].FadeIndex = PhoDecay;
+
+                    } else {
+                        PhoCell[CellIndex].FadeIndex -= 1;
+                    }
+
+                //
+                // If the cell was not on its way to blank, it was just
+                // refreshed, so no more action is needed.
+                //
+
+                } else {
+                    PhoCell[CellIndex].Redraw = FALSE;
+                }
             }
         }
     }
@@ -1335,12 +1377,17 @@ Return Value:
 {
 
     HBRUSH BackgroundBrush;
-    UCHAR Blue;
+    ULONG BitmapIndex;
+    ULONG Blue;
     COLORREF BlurColor;
+    COLORREF BrightColor;
     UCHAR Character;
+    ULONG CharacterCount;
     ULONG CharacterIndex;
+    ULONG FadeIndex;
     HBRUSH ForegroundBrush;
-    UCHAR Green;
+    ULONG Green;
+    ULONG ListSize;
     HBRUSH OriginalBrush;
     HFONT OriginalFont;
     ULONG OriginalHeight;
@@ -1348,13 +1395,14 @@ Return Value:
     HDC RawCharacter;
     HBITMAP RawCharacterBitmap;
     HBITMAP RawCharacterOriginalBitmap;
-    UCHAR Red;
+    ULONG Red;
     HDC ScaledCharacter;
     HBITMAP ScaledCharacterBitmap;
     HBITMAP ScaledCharacterOriginalBitmap;
     BOOL Result;
     TEXTMETRIC TextMetric;
 
+    CharacterCount = ASCII_MAX - ASCII_MIN + 1;
     RawCharacter = NULL;
     RawCharacterBitmap = NULL;
     RawCharacterOriginalBitmap = NULL;
@@ -1383,11 +1431,24 @@ Return Value:
     PhoCharacterHeight = OriginalHeight * PhoScale;
 
     //
+    // Allocate space for the bitmap structures.
+    //
+
+    ListSize = (PhoDecay + 1) * CharacterCount * sizeof(CHARACTER_BITMAP);
+    PhoBitmaps = malloc(ListSize);
+    if (PhoBitmaps == NULL) {
+        Result = FALSE;
+        goto CreateCharactersEnd;
+    }
+
+    memset(PhoBitmaps, 0, ListSize);
+
+    //
     // Create each printable character.
     //
 
     for (CharacterIndex = 0;
-         CharacterIndex < ASCII_MAX - ASCII_MIN + 1;
+         CharacterIndex < CharacterCount;
          CharacterIndex += 1) {
 
         Character = ASCII_MIN + CharacterIndex;
@@ -1458,73 +1519,108 @@ Return Value:
         }
 
         //
-        // Create the larger bitmap.
+        // Create the larger bitmap for each frame in the fade from all on
+        // to the faintest hint.
         //
 
-        ScaledCharacter = CreateCompatibleDC(WindowDc);
-        if (ScaledCharacter == NULL) {
-            Result = FALSE;
-            goto CreateCharactersEnd;
+        for (FadeIndex = 0; FadeIndex <= PhoDecay; FadeIndex += 1) {
+            ScaledCharacter = CreateCompatibleDC(WindowDc);
+            if (ScaledCharacter == NULL) {
+                Result = FALSE;
+                goto CreateCharactersEnd;
+            }
+
+            ScaledCharacterBitmap = CreateCompatibleBitmap(WindowDc,
+                                                           PhoCharacterWidth,
+                                                           PhoCharacterHeight);
+
+            if (ScaledCharacterBitmap == NULL) {
+                Result = FALSE;
+                goto CreateCharactersEnd;
+            }
+
+            ScaledCharacterOriginalBitmap =
+                             SelectObject(ScaledCharacter, ScaledCharacterBitmap);
+
+            //
+            // Fill the destination with the background color.
+            //
+
+            OriginalBrush = SelectObject(ScaledCharacter, BackgroundBrush);
+            ExtFloodFill(ScaledCharacter,
+                         0,
+                         0,
+                         GetPixel(ScaledCharacter, 0, 0),
+                         FLOODFILLSURFACE);
+
+            SelectObject(ScaledCharacter, OriginalBrush);
+
+            //
+            // Figure out what the brightest color is for this cell in the fade
+            // progression. The brightest color is somewhere between the
+            // background and the foreground.
+            //
+
+            Red = (UCHAR)((double)(GetRValue(Foreground) -
+                                   GetRValue(Background)) *
+                          (double)(FadeIndex + 1) / (double)(PhoDecay + 1));
+
+            Green = (UCHAR)((double)(GetGValue(Foreground) -
+                                     GetGValue(Background)) *
+                            (double)(FadeIndex + 1) / (double)(PhoDecay + 1));
+
+            Blue = (UCHAR)((double)(GetBValue(Foreground) -
+                                    GetBValue(Background)) *
+                           (double)(FadeIndex + 1) / (double)(PhoDecay + 1));
+
+            BrightColor = RGB(Red + GetRValue(Background),
+                              Green + GetGValue(Background),
+                              Blue + GetBValue(Background));
+
+            //
+            // Create the shadow color half way between the foreground and
+            // background.
+            //
+
+            Red = (GetRValue(BrightColor) + GetRValue(Background)) / 2;
+            Green = (GetGValue(BrightColor) + GetGValue(Background)) / 2;
+            Blue = (GetBValue(BrightColor) + GetBValue(Background)) / 2;
+            BlurColor = RGB(Red, Green, Blue);
+
+            //
+            // Lay down the blur color.
+            //
+
+            PhopCreateCharacter(RawCharacter,
+                                OriginalWidth,
+                                OriginalHeight,
+                                ScaledCharacter,
+                                BlurColor,
+                                PhoScale,
+                                1.3);
+
+            //
+            // Now print the main color.
+            //
+
+            PhopCreateCharacter(RawCharacter,
+                                OriginalWidth,
+                                OriginalHeight,
+                                ScaledCharacter,
+                                BrightColor,
+                                PhoScale,
+                                0.8);
+
+            //
+            // Save the bitmaps.
+            //
+
+            BitmapIndex = CharacterIndex + (FadeIndex * CharacterCount);
+            PhoBitmaps[BitmapIndex].Character = ScaledCharacter;
+            PhoBitmaps[BitmapIndex].Bitmap = ScaledCharacterBitmap;
+            PhoBitmaps[BitmapIndex].OldBitmap = ScaledCharacterOriginalBitmap;
+            ScaledCharacter = NULL;
         }
-
-        ScaledCharacterBitmap = CreateCompatibleBitmap(WindowDc,
-                                                       PhoCharacterWidth,
-                                                       PhoCharacterHeight);
-
-        if (ScaledCharacterBitmap == NULL) {
-            Result = FALSE;
-            goto CreateCharactersEnd;
-        }
-
-        ScaledCharacterOriginalBitmap =
-                         SelectObject(ScaledCharacter, ScaledCharacterBitmap);
-
-        //
-        // Fill the destination with the background color.
-        //
-
-        OriginalBrush = SelectObject(ScaledCharacter, BackgroundBrush);
-        ExtFloodFill(ScaledCharacter,
-                     0,
-                     0,
-                     GetPixel(ScaledCharacter, 0, 0),
-                     FLOODFILLSURFACE);
-
-        SelectObject(ScaledCharacter, OriginalBrush);
-
-        //
-        // Create the shadow color half way between the foreground and
-        // background.
-        //
-
-        Red = (GetRValue(Foreground) + GetRValue(Background)) / 2;
-        Green = (GetGValue(Foreground) + GetGValue(Background)) / 2;
-        Red = (GetBValue(Foreground) + GetBValue(Background)) / 2;
-        BlurColor = RGB(Red, Green, Blue);
-
-        //
-        // Lay down the blur color.
-        //
-
-        PhopCreateCharacter(RawCharacter,
-                            OriginalWidth,
-                            OriginalHeight,
-                            ScaledCharacter,
-                            BlurColor,
-                            PhoScale,
-                            1.3);
-
-        //
-        // Now print the main color.
-        //
-
-        PhopCreateCharacter(RawCharacter,
-                            OriginalWidth,
-                            OriginalHeight,
-                            ScaledCharacter,
-                            Foreground,
-                            PhoScale,
-                            0.8);
 
         //
         // Delete the original bitmap.
@@ -1534,15 +1630,6 @@ Return Value:
         DeleteObject(RawCharacterBitmap);
         DeleteDC(RawCharacter);
         RawCharacter = NULL;
-
-        //
-        // Save the bitmaps.
-        //
-
-        PhoCharacters[CharacterIndex].Character = ScaledCharacter;
-        PhoCharacters[CharacterIndex].Bitmap = ScaledCharacterBitmap;
-        PhoCharacters[CharacterIndex].OldBitmap = ScaledCharacterOriginalBitmap;
-        ScaledCharacter = NULL;
     }
 
     Result = TRUE;
@@ -1591,20 +1678,24 @@ Return Value:
 
 {
 
+    ULONG CharacterCount;
     ULONG Index;
 
-    for (Index = 0; Index <= ASCII_MAX - ASCII_MIN; Index += 1) {
-        if (PhoCharacters[Index].Character != NULL) {
-            SelectObject(PhoCharacters[Index].Character,
-                         PhoCharacters[Index].OldBitmap);
+    CharacterCount = (ASCII_MAX - ASCII_MIN + 1) * (PhoDecay + 1);
+    for (Index = 0; Index < CharacterCount; Index += 1) {
+        if (PhoBitmaps[Index].Character != NULL) {
+            SelectObject(PhoBitmaps[Index].Character,
+                         PhoBitmaps[Index].OldBitmap);
 
-            DeleteObject(PhoCharacters[Index].Bitmap);
-            PhoCharacters[Index].Bitmap = NULL;
-            DeleteDC(PhoCharacters[Index].Character);
-            PhoCharacters[Index].Character = NULL;
+            DeleteObject(PhoBitmaps[Index].Bitmap);
+            PhoBitmaps[Index].Bitmap = NULL;
+            DeleteDC(PhoBitmaps[Index].Character);
+            PhoBitmaps[Index].Character = NULL;
         }
     }
 
+    free(PhoBitmaps);
+    PhoBitmaps = NULL;
     return;
 }
 
@@ -1776,9 +1867,15 @@ Return Value:
 
 {
 
+    UCHAR BackedCharacter;
+    ULONG CellIndex;
     UCHAR CursorCharacter;
 
-    CursorCharacter = PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Character;
+    CellIndex = (PhoCursorY * PhoXCells) + PhoCursorX;
+    CursorCharacter = PhoCell[CellIndex].Character;
+    if (PhoCell[CellIndex].FadeIndex != PhoDecay) {
+        CursorCharacter = ' ';
+    }
 
     //
     // Determine if the character is printable.
@@ -1821,13 +1918,16 @@ Return Value:
             PhoCursorX -= 1;
         }
 
-        if (PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Character !=
-            CursorCharacter) {
+        CellIndex = (PhoCursorY * PhoXCells) + PhoCursorX;
+        BackedCharacter = PhoCell[CellIndex].Character;
+        if (PhoCell[CellIndex].FadeIndex != PhoDecay) {
+            BackedCharacter = ' ';
+        }
 
-            PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Character =
-                                                               CursorCharacter;
-
-            PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Redraw = TRUE;
+        if (BackedCharacter != CursorCharacter) {
+            PhoCell[CellIndex].Character = CursorCharacter;
+            PhoCell[CellIndex].Redraw = TRUE;
+            PhoCell[CellIndex].FadeIndex = PhoDecay;
         }
 
         return TRUE;
@@ -1840,12 +1940,19 @@ Return Value:
     if (Character == '\n') {
 
         //
-        // Turn off the cursor if it was there.
+        // Turn off the cursor if it was there, beginning the fade if needed.
         //
 
-        if (PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Character != ' ') {
-            PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Character = ' ';
-            PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Redraw = TRUE;
+        if (CursorCharacter != ' ') {
+            if (PhoCell[CellIndex].FadeIndex != 0) {
+                PhoCell[CellIndex].FadeIndex -= 1;
+
+            } else {
+                PhoCell[CellIndex].Character = ' ';
+                PhoCell[CellIndex].FadeIndex = PhoDecay;
+            }
+
+            PhoCell[CellIndex].Redraw = TRUE;
         }
 
         PhoCursorX = 0;
@@ -1863,8 +1970,9 @@ Return Value:
     // This is a normal character. Update the cell.
     //
 
-    PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Character = Character;
-    PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Redraw = TRUE;
+    PhoCell[CellIndex].Character = Character;
+    PhoCell[CellIndex].Redraw = TRUE;
+    PhoCell[CellIndex].FadeIndex = PhoDecay;
 
     //
     // Advance the cursor.
@@ -1880,17 +1988,16 @@ Return Value:
         }
     }
 
+    CellIndex = (PhoCursorY * PhoXCells) + PhoCursorX;
+
     //
     // Restore the cursor if it was previously printed.
     //
 
-    if (PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Character !=
-        CursorCharacter) {
-
-        PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Character =
-                                                               CursorCharacter;
-
-        PhoCell[(PhoCursorY * PhoXCells) + PhoCursorX].Redraw = TRUE;
+    if (PhoCell[CellIndex].Character != CursorCharacter) {
+        PhoCell[CellIndex].Character = CursorCharacter;
+        PhoCell[CellIndex].Redraw = TRUE;
+        PhoCell[CellIndex].FadeIndex = PhoDecay;
     }
 
     return TRUE;
@@ -1918,6 +2025,7 @@ Return Value:
 
 {
 
+    UCHAR Character;
     ULONG DestinationIndex;
     ULONG XIndex;
     ULONG YIndex;
@@ -1933,21 +2041,45 @@ Return Value:
             SourceIndex = ((YIndex + 1) * PhoXCells) + XIndex;
 
             //
-            // If the destination and source are the same, no action is needed.
+            // If the source character is in the process of fading, the
+            // character is actually a space.
             //
 
-            if (PhoCell[DestinationIndex].Character ==
-                PhoCell[SourceIndex].Character) {
+            Character = PhoCell[SourceIndex].Character;
+            if (PhoCell[SourceIndex].FadeIndex != PhoDecay) {
+                Character = ' ';
+            }
+
+            //
+            // If the destination and source are the same and the destination
+            // wasn't in the process of fading, no action is needed.
+            //
+
+            if ((PhoCell[DestinationIndex].Character == Character) &&
+                (PhoCell[DestinationIndex].FadeIndex == PhoDecay)) {
 
                 continue;
             }
 
             //
-            // Set the cell's character to the one below it.
+            // Set the cell's character to the one below it. If it's a space,
+            // begin the fade process.
             //
 
-            PhoCell[DestinationIndex].Character =
-                                                PhoCell[SourceIndex].Character;
+            if (PhoCell[SourceIndex].Character == ' ') {
+                if ((PhoCell[DestinationIndex].FadeIndex == PhoDecay) &&
+                    (PhoCell[DestinationIndex].FadeIndex != 0)) {
+
+                    PhoCell[DestinationIndex].FadeIndex -= 1;
+
+                } else {
+                    PhoCell[DestinationIndex].Character = Character;
+                }
+
+            } else {
+                PhoCell[DestinationIndex].Character = Character;
+                PhoCell[DestinationIndex].FadeIndex = PhoDecay;
+            }
 
             PhoCell[DestinationIndex].Redraw = TRUE;
         }
@@ -1962,14 +2094,23 @@ Return Value:
         DestinationIndex = (YIndex * PhoXCells) + XIndex;
 
         //
-        // If the character is already empty, no action is needed.
+        // If the character is already empty or on its way, no action is needed.
         //
 
-        if (PhoCell[DestinationIndex].Character == ' ') {
+        if ((PhoCell[DestinationIndex].Character == ' ') ||
+            (PhoCell[DestinationIndex].FadeIndex != PhoDecay)) {
+
             continue;
         }
 
-        PhoCell[DestinationIndex].Character = ' ';
+        if (PhoCell[DestinationIndex].FadeIndex != 0) {
+            PhoCell[DestinationIndex].FadeIndex -= 1;
+
+        } else {
+            PhoCell[DestinationIndex].Character = ' ';
+            PhoCell[DestinationIndex].FadeIndex = PhoDecay;
+        }
+
         PhoCell[DestinationIndex].Redraw = TRUE;
     }
 
@@ -1981,7 +2122,8 @@ PhopPrintCharacter (
     HDC Window,
     UCHAR Character,
     ULONG XPosition,
-    ULONG YPosition
+    ULONG YPosition,
+    ULONG FadeIndex
     )
 
 /*++
@@ -2001,6 +2143,8 @@ Arguments:
 
     YPosition - Supplies the vertical cell offset to print at.
 
+    FadeIndex - Supplies the fade index of the character to print.
+
 Return Value:
 
     None. The image is written to the window.
@@ -2009,16 +2153,21 @@ Return Value:
 
 {
 
+    ULONG BitmapIndex;
+    ULONG CharacterCount;
+
     //
     // Simply copy the character onto the window.
     //
 
+    CharacterCount = ASCII_MAX - ASCII_MIN + 1;
+    BitmapIndex = (Character - ASCII_MIN) + (FadeIndex * CharacterCount);
     BitBlt(Window,
            XPosition * PhoCharacterWidth,
            YPosition * PhoCharacterHeight,
            PhoCharacterWidth,
            PhoCharacterHeight,
-           PhoCharacters[Character - ASCII_MIN].Character,
+           PhoBitmaps[BitmapIndex].Character,
            0,
            0,
            SRCCOPY);
@@ -2644,6 +2793,7 @@ Return Value:
     UCHAR BackgroundGreen;
     UCHAR BackgroundRed;
     ULONG CursorRate;
+    ULONG Decay;
     HWND EditBox;
     PSTR FontName;
     UCHAR ForegroundBlue;
@@ -2734,7 +2884,7 @@ Return Value:
     ForegroundBlue = (UCHAR)strtol(String, NULL, 10);
 
     //
-    // Get the text scale, cursor rate, and text rate.
+    // Get the text scale, cursor rate, text rate, and decay.
     //
 
     EditBox = GetDlgItem(Window, IDE_TEXT_SCALE);
@@ -2776,6 +2926,19 @@ Return Value:
         goto TakeInParametersEnd;
     }
 
+    EditBox = GetDlgItem(Window, IDE_DECAY);
+    Edit_GetText(EditBox, String, 50);
+    Decay = strtoul(String, NULL, 10);
+    if (Decay > 100) {
+        MessageBox(NULL,
+                   "Please enter a decay value between 1 and 100.",
+                   "Error",
+                   MB_OK);
+
+        Result = FALSE;
+        goto TakeInParametersEnd;
+    }
+
     free(String);
     String = NULL;
 
@@ -2793,6 +2956,7 @@ Return Value:
     PhoScale = TextScale;
     PhoCursorBlinkMs = CursorRate;
     PhoInputDelayUs = TextRate;
+    PhoDecay = Decay;
     PhoSearchPath = SearchPath;
     Result = TRUE;
 
@@ -2914,7 +3078,7 @@ Return Value:
     }
 
     //
-    // Save the cursor rate, text rate, and text scale.
+    // Save the cursor rate, text rate, text scale, and decay.
     //
 
     sprintf(String, "%.2f", PhoScale);
@@ -2940,6 +3104,16 @@ Return Value:
     sprintf(String, "%d", (UINT)PhoInputDelayUs);
     Result = WritePrivateProfileString(APPLICATION_NAME,
                                        KEY_TEXT_RATE,
+                                       String,
+                                       CONFIGURATION_FILE);
+
+    if (Result == FALSE) {
+        EndResult = FALSE;
+    }
+
+    sprintf(String, "%d", (UINT)PhoDecay);
+    Result = WritePrivateProfileString(APPLICATION_NAME,
+                                       KEY_DECAY,
                                        String,
                                        CONFIGURATION_FILE);
 
@@ -3041,7 +3215,7 @@ Return Value:
                                                     CONFIGURATION_FILE);
 
     //
-    // Save the cursor rate, text rate, and text scale.
+    // Save the cursor rate, text rate, text scale, and decay.
     //
 
     PhoCursorBlinkMs = GetPrivateProfileInt(APPLICATION_NAME,
@@ -3053,6 +3227,15 @@ Return Value:
                                            KEY_TEXT_RATE,
                                            PhoInputDelayUs,
                                            CONFIGURATION_FILE);
+
+    PhoDecay = GetPrivateProfileInt(APPLICATION_NAME,
+                                    KEY_DECAY,
+                                    PhoDecay,
+                                    CONFIGURATION_FILE);
+
+    if (PhoDecay >= 100) {
+        PhoDecay = 0;
+    }
 
     String = malloc(50);
     if (String == NULL) {

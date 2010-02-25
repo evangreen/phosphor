@@ -37,6 +37,10 @@ BEGIN
                   UI_BORDER, TEXT_RATE_OFFSET_Y, UI_DESCRIPTION_WIDTH,
                   UI_LINE_HEIGHT
 
+    RTEXT         "Decay: ", 0,
+                  UI_BORDER, DECAY_OFFSET_Y, UI_DESCRIPTION_WIDTH,
+                  UI_LINE_HEIGHT
+
     LTEXT         "Files to print (semicolon delimited, wildcards permitted): ",
                   0,
                   UI_BORDER, TEXT_FILES_DESCRIPTION_OFFSET_Y,
@@ -79,6 +83,11 @@ BEGIN
                   EDIT_GREEN_OFFSET_X, FOREGROUND_OFFSET_Y, UI_SMALL_BOX_WIDTH,
                   UI_LINE_HEIGHT
 
+    CONTROL       "", IDE_FOREGROUND_BLUE, "EDIT",
+                  ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
+                  EDIT_BLUE_OFFSET_X, FOREGROUND_OFFSET_Y, UI_SMALL_BOX_WIDTH,
+                  UI_LINE_HEIGHT
+
     CONTROL       "", IDE_TEXT_SCALE, "EDIT",
                   ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
                   EDIT_BOX_OFFSET_X, TEXT_SCALE_OFFSET_Y, UI_MEDIUM_BOX_WIDTH,
@@ -94,9 +103,9 @@ BEGIN
                   EDIT_BOX_OFFSET_X, TEXT_RATE_OFFSET_Y, UI_MEDIUM_BOX_WIDTH,
                   UI_LINE_HEIGHT
 
-    CONTROL       "", IDE_FOREGROUND_BLUE, "EDIT",
+    CONTROL       "", IDE_DECAY, "EDIT",
                   ES_LEFT | WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP,
-                  EDIT_BLUE_OFFSET_X, FOREGROUND_OFFSET_Y, UI_SMALL_BOX_WIDTH,
+                  EDIT_BOX_OFFSET_X, DECAY_OFFSET_Y, UI_MEDIUM_BOX_WIDTH,
                   UI_LINE_HEIGHT
 
     CONTROL       "OK", IDC_OK, "BUTTON",
