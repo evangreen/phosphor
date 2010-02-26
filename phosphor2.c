@@ -337,6 +337,7 @@ Return Value:
     MSG Message;
     HWND Parent;
     RECT ParentRect;
+    ULONG Properties;
     BOOLEAN Result;
     INT Return;
     HWND Window;
@@ -344,8 +345,8 @@ Return Value:
     ULONG WindowWidth;
 
     Parent = NULL;
-    WindowWidth = 800;
-    WindowHeight = 600;
+    WindowWidth = 1024;
+    WindowHeight = 768;
 
     //
     // Parse any parameters. C runs the configure dialog.
@@ -430,10 +431,17 @@ Return Value:
     //
 
     if (ScreenSaverWindowed != FALSE) {
+        if (Parent != NULL) {
+            Properties = WS_VISIBLE | WS_CHILD;
+
+        } else {
+            Properties = WS_VISIBLE | WS_POPUP;
+        }
+
         Window = CreateWindowEx(WS_EX_TOPMOST,
                                 APPLICATION_NAME,
                                 APPLICATION_NAME,
-                                WS_VISIBLE | WS_CHILD,
+                                Properties,
                                 0,
                                 0,
                                 WindowWidth,
