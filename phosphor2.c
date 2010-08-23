@@ -45,6 +45,7 @@ Environment:
 #define MAX_STRING (1024 * 12)
 #define SETTLING_TIME 500000
 #define MOUSE_TOLERANCE 5
+#define DECAY_COUNT 10
 
 //
 // Configuration key names.
@@ -246,16 +247,16 @@ BOOLEAN ScreenSaverWindowed = FALSE;
 PSTR PhoFontName = "MS Gothic";
 ULONG PhoForegroundRed = 0x00;
 ULONG PhoForegroundGreen = 0xFF;
-ULONG PhoForegroundBlue = 0x00;
+ULONG PhoForegroundBlue = 0x30;
 ULONG PhoBackgroundRed = 0x00;
 ULONG PhoBackgroundGreen = 0x00;
-ULONG PhoBackgroundBlue = 0x50;
+ULONG PhoBackgroundBlue = 0x00;
 double PhoScale = 6.0;
 ULONG PhoTimerRateMs = 20;
-ULONG PhoDecay = 3;
+ULONG PhoDecay = 6;
 ULONG PhoCursorBlinkMs = 500;
 ULONG PhoInputDelayUs = 50000;
-PSTR PhoSearchPath = "c:\\src\\*.c;c:\\src\\*.h;c:\\src\\*.s";
+PSTR PhoSearchPath = "";
 
 //
 // Phosphor State.
@@ -1225,6 +1226,7 @@ Return Value:
 
     ULONG CellIndex;
     HDC Dc;
+    ULONG Shade;
     ULONG XIndex;
     ULONG YIndex;
 
@@ -1233,11 +1235,12 @@ Return Value:
         for (XIndex = 0; XIndex < PhoXCells; XIndex += 1) {
             CellIndex = (YIndex * PhoXCells) + XIndex;
             if (PhoCell[CellIndex].Redraw != FALSE) {
+                Shade = PhoCell[CellIndex].FadeIndex * DECAY_COUNT / PhoDecay;
                 PhopPrintCharacter(Dc,
                                    PhoCell[CellIndex].Character,
                                    XIndex,
                                    YIndex,
-                                   PhoCell[CellIndex].FadeIndex);
+                                   Shade);
 
                 //
                 // If a cell is currently in transition to blank, keep it
@@ -1442,9 +1445,10 @@ Return Value:
     // Allocate space for the bitmap structures.
     //
 
-    ListSize = (PhoDecay + 1) * CharacterCount * sizeof(CHARACTER_BITMAP);
+    ListSize = (DECAY_COUNT + 1) * CharacterCount * sizeof(CHARACTER_BITMAP);
     PhoBitmaps = malloc(ListSize);
     if (PhoBitmaps == NULL) {
+        MessageBox(NULL, "Failed to allocate memory.", "Out of memory", MB_OK);
         Result = FALSE;
         goto CreateCharactersEnd;
     }
@@ -1531,7 +1535,7 @@ Return Value:
         // to the faintest hint.
         //
 
-        for (FadeIndex = 0; FadeIndex <= PhoDecay; FadeIndex += 1) {
+        for (FadeIndex = 0; FadeIndex <= DECAY_COUNT; FadeIndex += 1) {
             ScaledCharacter = CreateCompatibleDC(WindowDc);
             if (ScaledCharacter == NULL) {
                 Result = FALSE;
@@ -1571,15 +1575,17 @@ Return Value:
 
             Red = (UCHAR)((double)(GetRValue(Foreground) -
                                    GetRValue(Background)) *
-                          (double)(FadeIndex + 1) / (double)(PhoDecay + 1));
+                          (double)(FadeIndex + 1) / (double)(DECAY_COUNT + 1));
 
             Green = (UCHAR)((double)(GetGValue(Foreground) -
                                      GetGValue(Background)) *
-                            (double)(FadeIndex + 1) / (double)(PhoDecay + 1));
+                            (double)(FadeIndex + 1) / 
+                            (double)(DECAY_COUNT + 1));
 
             Blue = (UCHAR)((double)(GetBValue(Foreground) -
                                     GetBValue(Background)) *
-                           (double)(FadeIndex + 1) / (double)(PhoDecay + 1));
+                           (double)(FadeIndex + 1) / 
+                           (double)(DECAY_COUNT + 1));
 
             BrightColor = RGB(Red + GetRValue(Background),
                               Green + GetGValue(Background),
@@ -1656,7 +1662,6 @@ CreateCharactersEnd:
             DeleteObject(ScaledCharacterBitmap);
             DeleteDC(ScaledCharacter);
         }
-
     }
 
     return Result;
@@ -1689,7 +1694,7 @@ Return Value:
     ULONG CharacterCount;
     ULONG Index;
 
-    CharacterCount = (ASCII_MAX - ASCII_MIN + 1) * (PhoDecay + 1);
+    CharacterCount = (ASCII_MAX - ASCII_MIN + 1) * (DECAY_COUNT + 1);
     for (Index = 0; Index < CharacterCount; Index += 1) {
         if (PhoBitmaps[Index].Character != NULL) {
             SelectObject(PhoBitmaps[Index].Character,
@@ -2074,19 +2079,12 @@ Return Value:
             // begin the fade process.
             //
 
-            if (PhoCell[SourceIndex].Character == ' ') {
-                if ((PhoCell[DestinationIndex].FadeIndex == PhoDecay) &&
-                    (PhoCell[DestinationIndex].FadeIndex != 0)) {
-
-                    PhoCell[DestinationIndex].FadeIndex -= 1;
-
-                } else {
-                    PhoCell[DestinationIndex].Character = Character;
-                }
-
-            } else {
+            if (Character != ' ') {
                 PhoCell[DestinationIndex].Character = Character;
                 PhoCell[DestinationIndex].FadeIndex = PhoDecay;
+                
+            } else if (PhoCell[DestinationIndex].FadeIndex == PhoDecay) {
+                PhoCell[DestinationIndex].FadeIndex -= 1;
             }
 
             PhoCell[DestinationIndex].Redraw = TRUE;
@@ -3240,10 +3238,6 @@ Return Value:
                                     KEY_DECAY,
                                     PhoDecay,
                                     CONFIGURATION_FILE);
-
-    if (PhoDecay >= 100) {
-        PhoDecay = 0;
-    }
 
     String = malloc(50);
     if (String == NULL) {
