@@ -1,6 +1,11 @@
 #include <windows.h>
 #include "resource.h"
 
+STRINGTABLE
+BEGIN
+    IDS_DESCRIPTION, "Phosphor 2"
+END
+
 ID_ICON ICON DISCARDABLE "phosphor2.ico"
 
 IDR_SOURCE RCDATA "phosphor2.c"
