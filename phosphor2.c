@@ -911,10 +911,6 @@ InitializeEnd:
         DeleteObject(Font);
     }
 
-    if (Dc != NULL) {
-        ReleaseDC(Window, Dc);
-    }
-
     return Result;
 }
 
@@ -986,6 +982,7 @@ Return Value:
     PhoDirectoryCount = 0;
     PhoDirectoryMaxCount = 0;
     PhopDestroyCharacters();
+    return;
 }
 
 VOID
@@ -1159,7 +1156,6 @@ Return Value:
 
     PhoInputTimeUs += Microseconds;
     while (PhoInputTimeUs > PhoInputDelayUs) {
-
         do {
             Result = PhopGetInput(&Input);
             if (Result == FALSE) {
@@ -1579,12 +1575,12 @@ Return Value:
 
             Green = (UCHAR)((double)(GetGValue(Foreground) -
                                      GetGValue(Background)) *
-                            (double)(FadeIndex + 1) / 
+                            (double)(FadeIndex + 1) /
                             (double)(DECAY_COUNT + 1));
 
             Blue = (UCHAR)((double)(GetBValue(Foreground) -
                                     GetBValue(Background)) *
-                           (double)(FadeIndex + 1) / 
+                           (double)(FadeIndex + 1) /
                            (double)(DECAY_COUNT + 1));
 
             BrightColor = RGB(Red + GetRValue(Background),
@@ -1777,10 +1773,6 @@ Return Value:
     BrushStyle.lbColor = Foreground;
     BrushStyle.lbHatch = 0;
     LineWidth = (DWORD)(Scale * PenWidthScale);
-    //if (LineWidth >= Scale) {
-    //    LineWidth = (DWORD)(Scale - 1);
-    //}
-
     if (LineWidth < 1) {
         LineWidth = 1;
     }
@@ -2082,7 +2074,7 @@ Return Value:
             if (Character != ' ') {
                 PhoCell[DestinationIndex].Character = Character;
                 PhoCell[DestinationIndex].FadeIndex = PhoDecay;
-                
+
             } else if (PhoCell[DestinationIndex].FadeIndex == PhoDecay) {
                 PhoCell[DestinationIndex].FadeIndex -= 1;
             }
