@@ -456,8 +456,8 @@ Return Value:
                                 APPLICATION_NAME,
                                 APPLICATION_NAME,
                                 WS_VISIBLE | WS_POPUP,
-                                0,
-                                0,
+                                GetSystemMetrics(SM_XVIRTUALSCREEN),
+                                GetSystemMetrics(SM_YVIRTUALSCREEN),
                                 GetSystemMetrics(SM_CXVIRTUALSCREEN),
                                 GetSystemMetrics(SM_CYVIRTUALSCREEN),
                                 NULL,
@@ -1380,7 +1380,7 @@ Return Value:
     ULONG Blue;
     COLORREF BlurColor;
     COLORREF BrightColor;
-    UCHAR Character;
+    CHAR Character;
     ULONG CharacterCount;
     ULONG CharacterIndex;
     ULONG FadeIndex;
@@ -1829,6 +1829,8 @@ Return Value:
             }
         }
     }
+
+    SelectObject(Destination, OriginalPen);
 
 CreateCharacterEnd:
     if (Pen != NULL) {
@@ -2570,7 +2572,6 @@ Return Value:
     ULONG FullNameLength;
     PSTR *NewFiles;
     ULONG NewMax;
-    BOOLEAN Result;
 
     FullName = NULL;
     FullNameLength = strlen(Filename);
@@ -2584,7 +2585,6 @@ Return Value:
 
     FullName = malloc(FullNameLength + 1);
     if (FullName == NULL) {
-        Result = FALSE;
         goto AddFileEnd;
     }
 
@@ -2609,7 +2609,6 @@ Return Value:
 
         NewFiles = malloc(NewMax * sizeof(PSTR));
         if (NewFiles == NULL) {
-            Result = FALSE;
             goto AddFileEnd;
         }
 
@@ -2628,7 +2627,6 @@ Return Value:
     //
 
     FullName = NULL;
-    Result = TRUE;
 
 AddFileEnd:
     if (FullName != NULL) {
@@ -2673,7 +2671,6 @@ Return Value:
     PDIRECTORY_SEARCH NewSearch;
     PSTR NewTerm;
     ULONG NewMax;
-    BOOLEAN Result;
 
     NewDirectory = NULL;
     NewTerm = NULL;
@@ -2689,7 +2686,6 @@ Return Value:
 
     NewSearch = malloc(Length);
     if (NewSearch == NULL) {
-        Result = FALSE;
         goto AddDirectoryEnd;
     }
 
@@ -2721,7 +2717,6 @@ Return Value:
 
         NewDirectories = malloc(NewMax * sizeof(PDIRECTORY_SEARCH));
         if (NewDirectories == NULL) {
-            Result = FALSE;
             goto AddDirectoryEnd;
         }
 
@@ -2743,7 +2738,6 @@ Return Value:
     //
 
     NewSearch = NULL;
-    Result = TRUE;
 
 AddDirectoryEnd:
     if (NewSearch != NULL) {
